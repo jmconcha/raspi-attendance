@@ -4,7 +4,6 @@ lib
 lib64
 pyvenv.cfg
 .git
-db
 venv/
 __pycache__/
 *.pyc

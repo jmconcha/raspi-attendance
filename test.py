@@ -2,11 +2,12 @@
 
 import sqlite3
 
-conn = sqlite3.connect('./attendance')
+conn = sqlite3.connect('./attendance.db')
+cur = conn.cursor()
 print("Opened database successfully")
 
-conn.execute(
-    "INSERT INTO student VALUES (1, 'John Doe', 'Web Programming', '2025-02-20 15:43:36')")
+cur.execute(
+    "INSERT INTO student VALUES (2, 'John Doe', 'Web Programming', '2025-02-20 15:43:36', 2)")
 
 conn.commit()
 print("Records created successfully")

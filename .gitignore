@@ -5,3 +5,11 @@ lib64
 pyvenv.cfg
 .git
 db
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+*.env

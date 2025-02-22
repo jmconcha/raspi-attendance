@@ -192,16 +192,17 @@ def create_app():
         image_label.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
         # image_label.pack()
 
-        lbl_name = ttk.Label(frame, text="Name: John Doe", font=("Arial", 16))
-        lbl_name.grid(row=1, column=0, padx=20, pady=20, sticky="ew")
+        lbl_name = ttk.Label(frame, text="Name: John Doe",
+                             font=("Arial", 18, "bold"))
+        lbl_name.grid(row=1, column=0, padx=20, pady=(20, 0), sticky="ew")
 
         lbl_subj = ttk.Label(
-            frame, text="Subject: IT Major", font=("Arial", 16))
-        lbl_subj.grid(row=2, column=0, padx=20, pady=20, sticky="ew")
+            frame, text="Subject: IT Major", font=("Arial", 18, "bold"))
+        lbl_subj.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
 
         lbl_timein = ttk.Label(
-            frame, text="Time-in: 08:00 AM", font=("Arial", 16))
-        lbl_timein.grid(row=3, column=0, padx=20, pady=20, sticky="ew")
+            frame, text="Time-in: 08:00 AM", font=("Arial", 18, "bold"))
+        lbl_timein.grid(row=3, column=0, padx=20, pady=(0, 20), sticky="ew")
 
         def next_step():
             image_label.destroy()

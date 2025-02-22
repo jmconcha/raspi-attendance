@@ -113,20 +113,38 @@
 
 # print("Excel file 'students.xlsx' created successfully! 🎉")
 
-import sqlite3
+# import sqlite3
 
-conn = sqlite3.connect('./attend_sys.db')
-cur = conn.cursor()
-query = """
-SELECT student.name, subject.name, attendance.time_in
-FROM attendance
-JOIN student ON student.id = attendance.student
-JOIN subject ON subject.id = attendance.subject
-"""
+# conn = sqlite3.connect('./attend_sys.db')
+# cur = conn.cursor()
+# query = """
+# SELECT student.name, subject.name, attendance.time_in
+# FROM attendance
+# JOIN student ON student.id = attendance.student
+# JOIN subject ON subject.id = attendance.subject
+# """
 
-cur.execute(query)
-all_data = cur.fetchall()
+# cur.execute(query)
+# all_data = cur.fetchall()
 
-# Display the combined data
-for row in all_data:
-    print(row)
+# # Display the combined data
+# for row in all_data:
+#     print(row)
+
+import yagmail
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+receiver = "jmconcha.testing@gmail.com"
+body = "Hello there from Yagmail"
+filename = "students.xlsx"
+
+yag = yagmail.SMTP(os.getenv("EMAIL_USERNAME"), os.getenv("EMAIL_PASSWORD"))
+yag.send(
+    to=receiver,
+    subject="Yagmail test with attachment",
+    contents=body,
+    attachments=filename,
+)

@@ -7,6 +7,7 @@ from pathlib import Path
 import ttkbootstrap as ttk
 import sqlite3
 import threading
+import os
 
 # UNCOMMENT ON RASPI DEVELOPMENT
 from fingerprint import *
@@ -111,8 +112,8 @@ WHERE student.id = {stud_id}
         f"excel/{stud_name.lower().replace(' ', '-')}_attendance.xlsx"
     wb.save(file_name)
 
-    # UNCOMMENT AFTER DEVELOPMENT
     send_email(stud_email, stud_name, file_name)
+    os.remove(file_name)
 
 
 def clear_frame(frame):

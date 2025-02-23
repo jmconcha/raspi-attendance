@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2021 ladyada for Adafruit Industries
 # SPDX-License-Identifier: MIT
 
+import serial
 import time
 import board
 import busio
@@ -10,14 +11,13 @@ import adafruit_fingerprint
 led = DigitalInOut(board.D13)
 led.direction = Direction.OUTPUT
 
-#uart = busio.UART(board.TX, board.RX, baudrate=57600)
+# uart = busio.UART(board.TX, board.RX, baudrate=57600)
 
 # If using with a computer such as Linux/RaspberryPi, Mac, Windows with USB/serial converter:
 # import serial
 # uart = serial.Serial("/dev/ttyUSB0", baudrate=57600, timeout=1)
 
 # If using with Linux/Raspberry Pi and hardware UART:
-import serial
 uart = serial.Serial("/dev/ttyS0", baudrate=57600, timeout=1)
 print("test")
 print(uart)
@@ -173,26 +173,32 @@ def get_num():
     return i
 
 
-while True:
-    print("----------------")
-    if finger.read_templates() != adafruit_fingerprint.OK:
-        raise RuntimeError("Failed to read templates")
-    print("Fingerprint templates:", finger.templates)
-    print("e) enroll print")
-    print("f) find print")
-    print("d) delete print")
-    print("----------------")
-    c = input("> ")
+def main():
+    while True:
+        print("----------------")
+        if finger.read_templates() != adafruit_fingerprint.OK:
+            raise RuntimeError("Failed to read templates")
+        print("Fingerprint templates:", finger.templates)
+        print("e) enroll print")
+        print("f) find print")
+        print("d) delete print")
+        print("----------------")
+        c = input("> ")
 
-    if c == "e":
-        enroll_finger(get_num())
-    if c == "f":
-        if get_fingerprint():
-            print("Detected #", finger.finger_id, "with confidence", finger.confidence)
-        else:
-            print("Finger not found")
-    if c == "d":
-        if finger.delete_model(get_num()) == adafruit_fingerprint.OK:
-            print("Deleted!")
-        else:
-            print("Failed to delete")
+        if c == "e":
+            enroll_finger(get_num())
+        if c == "f":
+            if get_fingerprint():
+                print("Detected #", finger.finger_id,
+                      "with confidence", finger.confidence)
+            else:
+                print("Finger not found")
+        if c == "d":
+            if finger.delete_model(get_num()) == adafruit_fingerprint.OK:
+                print("Deleted!")
+            else:
+                print("Failed to delete")
+
+
+if __name__ == "__main__":
+    main()

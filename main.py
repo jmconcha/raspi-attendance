@@ -2,9 +2,14 @@ from ttkbootstrap.constants import *
 from tkinter import PhotoImage
 from datetime import datetime
 from openpyxl import Workbook
-from PIL import Image
+from PIL import Image, ImageTk
 import ttkbootstrap as ttk
 import sqlite3
+import threading
+
+# UNCOMMENT ON RASPI DEVELOPMENT
+# from fingerprint import *
+from mailer import send_email
 
 Image.CUBIC = Image.BICUBIC
 
@@ -72,7 +77,7 @@ def timein(sel_subj_id):
 
 def exp_attend(stud_id):
     query = f"""
-SELECT student.name, subject.name, attendance.time_in
+SELECT student.email, student.name, subject.name, attendance.time_in
 FROM attendance
 JOIN student ON student.id = attendance.student
 JOIN subject ON subject.id = attendance.subject
@@ -87,17 +92,31 @@ WHERE student.id = {stud_id}
     wb = Workbook()
     ws = wb.active
     ws.title = "Students"
-    stud_name = result_set[0][0]
+    stud_email = result_set[0][0]
+    stud_name = result_set[0][1]
 
     # Add headers
-    ws.append(["Name", "Subject Name", "Time IN"])
+    ws.append(["Name", "Subject Name", "Time In"])
 
     # Add student data
     for student in result_set:
-        ws.append(student)
+        row = list(student)
+        row.pop(0)
+        ws.append(row)
 
     # Save the file
-    wb.save(f"{stud_name.lower().replace(' ', '-')}_attendance.xlsx")
+    file_name = f"{stud_name.lower().replace(' ', '-')}_attendance.xlsx"
+    wb.save(file_name)
+
+    # UNCOMMENT AFTER DEVELOPMENT
+    send_email(stud_email, stud_name, file_name)
+
+
+def clear_frame(frame):
+    print('*' * 50)
+    for widget in frame.winfo_children():
+        print('widget ', widget)
+        widget.destroy()
 
 
 def create_app():
@@ -129,97 +148,109 @@ def create_app():
 
         def next_step():
             sel_subj_id = subjs_dict[dropdown.get()]
-            time_label.destroy()
-            dropdown.destroy()
-            next_button.destroy()
-            lbl_subj.destroy()
+            clear_frame(frame)
             scan_fingerprint(frame, sel_subj_id)
 
         # Next step button
         next_button = ttk.Button(
-            frame, text="Scan Fingerprint", command=next_step)
+            frame, text="Scan Fingerprint", style="Custom.TButton", command=next_step)
         next_button.grid(row=4, column=0, padx=20, pady=20, sticky="ew")
 
     def scan_fingerprint(frame, sel_subj_id):
+        spin_anim_id = None
+
         # Create a circular spinner animation by rotating the meter value
         def animate_spinner():
+            global spin_anim_id
             current_value = spinner.amountusedvar.get()
             # Loop back to 0 after reaching 100
             next_value = (current_value + 5) % 100
             spinner.configure(amountused=next_value)
-            root.after(200, animate_spinner)  # 5 steps per second
+            spin_anim_id = root.after(
+                200, animate_spinner)  # 5 steps per second
 
-        # def info_step():
-        #     spinner.destroy()
-        #     next_button.destroy()
-        #     imp_excel_btn.destroy()
-        #     display_info()
+        def threaded_scan():
+            global spin_anim_id
+            """Run fingerprint scanning in a separate thread."""
+            if get_fingerprint():
+                print("Detected #", finger.finger_id,
+                      "with confidence", finger.confidence)
+                root.after_cancel(spin_anim_id)
+                clear_frame(frame)
+                display_info(frame)
+            else:
+                print("Finger not found")
 
         spinner = ttk.Meter(
             frame,
-            metersize=180,
+            metersize=400,
             metertype="full",
-            padding=5,
+            meterthickness=20,
             amountused=0,
-            stripethickness=10,
+            stripethickness=5,
             bootstyle="success",
             subtext="Scanning\nFingerprint",
             showtext=False,
             subtextstyle="success",
-            subtextfont=("Arial", 14, "bold")
+            subtextfont=("Arial", 35, "bold")
         )
-        spinner.grid(row=0, column=0, pady=50)
 
+        spinner.grid(row=0, column=0)
         animate_spinner()
 
-        # Next step button
-        # next_button = ttk.Button(
-        #     frame, text="Temp Scan", command=lambda: timein(sel_subj_id))
-        next_button = ttk.Button(
-            frame, text="Temp Scan", command=lambda: display_info(frame))
-        next_button.grid(row=4, column=0, padx=20, pady=20, sticky="ew")
-
-        imp_excel_btn = ttk.Button(
-            frame, text="Export Attendance as Excel File", command=lambda: exp_attend(1))
-        imp_excel_btn.grid(row=6, column=0, padx=20, pady=20, sticky="ew")
+        # Run the scan in a separate thread
+        # UNCOMMENT ON RASPI DEVELOPMENT
+        # threading.Thread(target=threaded_scan).start()
 
     def display_info(frame):
         # Load and display an image
         # Change to your image file path
-        image = PhotoImage(file="./img/default.png")
-        image_label = ttk.Label(frame, image=image)
+        img_open = Image.open("./img/default.png")
+        img_open.thumbnail((200, 200))
+        image = ImageTk.PhotoImage(img_open)
+        image_label = ttk.Label(frame, image=image, background="#303030")
         image_label.image = image  # Keep a reference to prevent garbage collection
         image_label.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
-        # image_label.pack()
 
-        lbl_name = ttk.Label(frame, text="Name: John Doe",
-                             font=("Arial", 18, "bold"))
-        lbl_name.grid(row=1, column=0, padx=20, pady=(20, 0), sticky="ew")
+        # student information frame
+        frame_info = ttk.Frame(frame, bootstyle="dark")
+        # frame_info.pack(padx=20, pady=20, expand=True)
+        frame_info.grid(row=0, column=1, padx=(0, 20))
+
+        lbl_name = ttk.Label(frame_info, text="Name: John Doe",
+                             font=("Arial", 18, "bold"), background="#303030")
+        lbl_name.grid(row=0, column=1, pady=(20, 0), sticky="ew")
 
         lbl_subj = ttk.Label(
-            frame, text="Subject: IT Major", font=("Arial", 18, "bold"))
-        lbl_subj.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
+            frame_info, text="Subject: IT Major", font=("Arial", 18, "bold"), background="#303030")
+        lbl_subj.grid(row=1, column=1, pady=5, sticky="ew")
 
         lbl_timein = ttk.Label(
-            frame, text="Time-in: 08:00 AM", font=("Arial", 18, "bold"))
-        lbl_timein.grid(row=3, column=0, padx=20, pady=(0, 20), sticky="ew")
+            frame_info, text="Time-in: 08:00 AM", font=("Arial", 18, "bold"), background="#303030")
+        lbl_timein.grid(row=2, column=1, pady=(0, 20), sticky="ew")
 
-        def next_step():
-            image_label.destroy()
-            lbl_name.destroy()
-            lbl_subj.destroy()
-            next_button.destroy()
+        # export attendance report  as excel file
+        imp_excel_btn = ttk.Button(
+            frame_info, text="Export Attendance as Excel File", style="Custom.TButton", command=lambda: exp_attend(1))
+        imp_excel_btn.grid(row=3, column=1, pady=(10, 0), sticky="ew")
+
+        def finish_attend():
+            clear_frame(frame)
             select_subj(frame)
 
         # Next step button
-        next_button = ttk.Button(frame, text="Next Step", command=next_step)
-        next_button.grid(row=5, column=0, padx=20, pady=20, sticky="ew")
+        done_btn = ttk.Button(
+            frame, text="Done Attendance", style="Custom.TButton", command=finish_attend)
+        done_btn.grid(row=5, column=0, columnspan=2,
+                      padx=20, pady=20, sticky="ew")
 
     root = ttk.Window(themename="darkly")
+    style = ttk.Style()
+    style.configure("Custom.TButton", font=(
+        "Arial", 14, "bold"), padding=(20, 10))
     root.title("Attendance System")
-    root.geometry("800x480")  # Default size, 7 inch touchscreen resolution
-    # root.geometry("800x680")  # Default size
-    # root.state("zoomed")  # Start in full-screen mode
+    root.geometry("800x480")  # 7 inch touchscreen resolution
+    # root.geometry("800x680")  # temp size for developing
     root.resizable(False, False)  # Disable resizing
 
     # Configure grid to expand
@@ -234,7 +265,11 @@ def create_app():
     frame.columnconfigure(0, weight=1)
 
     # first step: time display and subjects selection
-    select_subj(frame)
+    # select_subj(frame)
+
+    # REMOVE AFTER DEVELOPMENT
+    display_info(frame)
+    # scan_fingerprint(frame, 1)
 
     root.mainloop()
 

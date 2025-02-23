@@ -3,19 +3,22 @@ from tkinter import PhotoImage
 from datetime import datetime
 from openpyxl import Workbook
 from PIL import Image, ImageTk
+from pathlib import Path
 import ttkbootstrap as ttk
 import sqlite3
 import threading
 
 # UNCOMMENT ON RASPI DEVELOPMENT
-# from fingerprint import *
+from fingerprint import *
 from mailer import send_email
 
 Image.CUBIC = Image.BICUBIC
+ROOT_DIR = Path(__file__).resolve().parent
+DATABASE = ROOT_DIR / "db/attend_sys.db"
 
 
 def open_conn():
-    conn = sqlite3.connect('./attend_sys.db')
+    conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
 
     return (conn, cur)
@@ -54,28 +57,27 @@ def get_student(fingerprint_id):
     result = cur.execute(
         f"Select * from student WHERE fingerprint_id={fingerprint_id}")
     student = result.fetchone()
-    student_id = student[0]
     conn.close()
 
-    return student_id
+    return student
 
 
-# temporary function replacement of fingerprint scanning
-def timein(sel_subj_id):
-    temp_stud_id = 1
-    get_student(temp_stud_id)
+def save_attendance(sel_subj_id, student_id):
     print(f"Selected subjectId: {sel_subj_id}")
     now = datetime.now()
     timein_str = now.strftime("%m-%d-%Y %H:%M")
-    print(timein_str)
     conn, cur = open_conn()
     cur.execute(
-        f"INSERT INTO attendance (subject, student, time_in) VALUES ({sel_subj_id}, {temp_stud_id}, '{timein_str}')")
+        f"INSERT INTO attendance (subject, student, time_in) VALUES ({sel_subj_id}, {student_id}, '{timein_str}')")
+    cur.execute(f"SELECT time_in FROM attendance WHERE id={cur.lastrowid}")
+    timein = cur.fetchone()[0]
     conn.commit()
     conn.close()
+    
+    return timein;
 
 
-def exp_attend(stud_id):
+def export_attendance(stud_id):
     query = f"""
 SELECT student.email, student.name, subject.name, attendance.time_in
 FROM attendance
@@ -105,7 +107,8 @@ WHERE student.id = {stud_id}
         ws.append(row)
 
     # Save the file
-    file_name = f"{stud_name.lower().replace(' ', '-')}_attendance.xlsx"
+    file_name = ROOT_DIR / \
+        f"excel/{stud_name.lower().replace(' ', '-')}_attendance.xlsx"
     wb.save(file_name)
 
     # UNCOMMENT AFTER DEVELOPMENT
@@ -120,20 +123,23 @@ def clear_frame(frame):
 
 
 def create_app():
+    attendance = { "student": {}, "subject": {}, "timein": None }
+    main_frame = None
+
     def update_time(label):
         current_time = datetime.now().strftime("%I:%M %p")
         label.config(text=current_time)
         label.after(1000, update_time, label)  # Update time every second
 
-    def select_subj(frame):
+    def select_subj():
         # Add real-time clock label
-        time_label = ttk.Label(frame,
+        time_label = ttk.Label(main_frame,
                                font=("Helvetica", 70, "bold"), padding=(20, 20, 20, 0), bootstyle="success")
         time_label.grid(row=0, column=0, padx=20, pady=20,
                         sticky="ew")
         update_time(time_label)  # Start updating the time
 
-        lbl_subj = ttk.Label(frame, text="Select Subject",
+        lbl_subj = ttk.Label(main_frame, text="Select Subject",
                              font=("Arial", 16, "bold"), background="#303030")
         lbl_subj.grid(row=1, column=0, padx=20, sticky="ew")
 
@@ -142,21 +148,23 @@ def create_app():
         options = [val for val in subjs_dict.keys()]
 
         dropdown = ttk.Combobox(
-            frame, values=options, state="readonly", bootstyle="primary", font=("Arial", 14))
+            main_frame, values=options, state="readonly", bootstyle="primary", font=("Arial", 14))
         dropdown.grid(row=2, column=0, padx=20, pady=(5, 20), sticky="ew")
         dropdown.current(0)  # Set default selection
 
         def next_step():
-            sel_subj_id = subjs_dict[dropdown.get()]
-            clear_frame(frame)
-            scan_fingerprint(frame, sel_subj_id)
+            subject_name = dropdown.get()
+            attendance["subject"]["name"] = subject_name
+            attendance["subject"]["id"] = subjs_dict[subject_name]
+            clear_frame(main_frame)
+            scan_fingerprint()
 
         # Next step button
         next_button = ttk.Button(
-            frame, text="Scan Fingerprint", style="Custom.TButton", command=next_step)
+            main_frame, text="Scan Fingerprint", style="Custom.TButton", command=next_step)
         next_button.grid(row=4, column=0, padx=20, pady=20, sticky="ew")
 
-    def scan_fingerprint(frame, sel_subj_id):
+    def scan_fingerprint():
         spin_anim_id = None
 
         # Create a circular spinner animation by rotating the meter value
@@ -175,14 +183,18 @@ def create_app():
             if get_fingerprint():
                 print("Detected #", finger.finger_id,
                       "with confidence", finger.confidence)
+                student_info = get_student(finger.finger_id)
+                attendance["student"]["id"] = student_info[0]
+                attendance["student"]["name"] = student_info[2]
+                attendance["timein"] = save_attendance(attendance["subject"]["id"], attendance["student"]["id"])
+                clear_frame(main_frame)
                 root.after_cancel(spin_anim_id)
-                clear_frame(frame)
-                display_info(frame)
+                display_info()
             else:
                 print("Finger not found")
 
         spinner = ttk.Meter(
-            frame,
+            main_frame,
             metersize=400,
             metertype="full",
             meterthickness=20,
@@ -200,47 +212,50 @@ def create_app():
 
         # Run the scan in a separate thread
         # UNCOMMENT ON RASPI DEVELOPMENT
-        # threading.Thread(target=threaded_scan).start()
+        threading.Thread(target=threaded_scan).start()
 
-    def display_info(frame):
+    def display_info():
         # Load and display an image
         # Change to your image file path
-        img_open = Image.open("./img/default.png")
+        img_path = ROOT_DIR / "img/default.png"
+        img_open = Image.open(img_path)
         img_open.thumbnail((200, 200))
         image = ImageTk.PhotoImage(img_open)
-        image_label = ttk.Label(frame, image=image, background="#303030")
+        image_label = ttk.Label(main_frame, image=image, background="#303030")
         image_label.image = image  # Keep a reference to prevent garbage collection
         image_label.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
+        
+        timein = datetime.strptime(attendance["timein"], "%m-%d-%Y %H:%M")
 
         # student information frame
-        frame_info = ttk.Frame(frame, bootstyle="dark")
+        frame_info = ttk.Frame(main_frame, bootstyle="dark")
         # frame_info.pack(padx=20, pady=20, expand=True)
         frame_info.grid(row=0, column=1, padx=(0, 20))
 
-        lbl_name = ttk.Label(frame_info, text="Name: John Doe",
+        lbl_name = ttk.Label(frame_info, text=f"Name: {attendance['student']['name']}",
                              font=("Arial", 18, "bold"), background="#303030")
         lbl_name.grid(row=0, column=1, pady=(20, 0), sticky="ew")
 
         lbl_subj = ttk.Label(
-            frame_info, text="Subject: IT Major", font=("Arial", 18, "bold"), background="#303030")
+            frame_info, text=f"Subject: {attendance['subject']['name']}", font=("Arial", 18, "bold"), background="#303030")
         lbl_subj.grid(row=1, column=1, pady=5, sticky="ew")
 
         lbl_timein = ttk.Label(
-            frame_info, text="Time-in: 08:00 AM", font=("Arial", 18, "bold"), background="#303030")
+            frame_info, text=f"Time-in: {timein.strftime('%I:%M %p')}", font=("Arial", 18, "bold"), background="#303030")
         lbl_timein.grid(row=2, column=1, pady=(0, 20), sticky="ew")
 
         # export attendance report  as excel file
         imp_excel_btn = ttk.Button(
-            frame_info, text="Export Attendance as Excel File", style="Custom.TButton", command=lambda: exp_attend(1))
+            frame_info, text="Export Attendance as Excel File", style="Custom.TButton", command=lambda: export_attendance(attendance["student"]["id"]))
         imp_excel_btn.grid(row=3, column=1, pady=(10, 0), sticky="ew")
 
         def finish_attend():
-            clear_frame(frame)
-            select_subj(frame)
+            clear_frame(main_frame)
+            select_subj(main_frame)
 
         # Next step button
         done_btn = ttk.Button(
-            frame, text="Done Attendance", style="Custom.TButton", command=finish_attend)
+            main_frame, text="Done Attendance", style="Custom.TButton", command=finish_attend)
         done_btn.grid(row=5, column=0, columnspan=2,
                       padx=20, pady=20, sticky="ew")
 
@@ -258,18 +273,14 @@ def create_app():
     root.columnconfigure(0, weight=1)
 
     # Create a frame
-    frame = ttk.Frame(root, bootstyle="dark")
-    frame.pack(padx=20, pady=20, expand=True)
+    main_frame = ttk.Frame(root, bootstyle="dark")
+    main_frame.pack(padx=20, pady=20, expand=True)
 
     # Center content horizontally
-    frame.columnconfigure(0, weight=1)
+    main_frame.columnconfigure(0, weight=1)
 
     # first step: time display and subjects selection
-    # select_subj(frame)
-
-    # REMOVE AFTER DEVELOPMENT
-    display_info(frame)
-    # scan_fingerprint(frame, 1)
+    select_subj()
 
     root.mainloop()
 

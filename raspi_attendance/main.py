@@ -252,7 +252,7 @@ def create_app():
 
         def finish_attend():
             clear_frame(main_frame)
-            select_subj(main_frame)
+            select_subj()
 
         # Next step button
         done_btn = ttk.Button(

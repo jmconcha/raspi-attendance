@@ -1,7 +1,6 @@
 from ttkbootstrap.constants import *
 from tkinter import PhotoImage
 from datetime import datetime
-from openpyxl import Workbook
 from PIL import Image, ImageTk
 import ttkbootstrap as ttk
 import threading
@@ -10,7 +9,8 @@ from pathlib import Path
 # UNCOMMENT ON RASPI DEVELOPMENT
 from fingerprint import *
 from mailer import Mailer
-from dbms import Attendance
+from dbms import Dbms
+from fingerprint import FPrintScanner
 
 Image.CUBIC = Image.BICUBIC
 ROOT_DIR = Path(__file__).resolve().parent  # Get the root directory
@@ -21,11 +21,10 @@ class AttendanceApp:
     root = None
 
     def __init__(self):
-        self.attendance = Attendance()
+        self.attendance = Dbms()
         self.style = ttk.Style()
-        style.configure("Custom.TButton", font=(
+        self.style.configure("Custom.TButton", font=(
             "Arial", 14, "bold"), padding=(20, 10))
-
 
     def start(self):
         self.root = ttk.Window(themename="darkly")
@@ -39,7 +38,7 @@ class AttendanceApp:
         # self.root.columnconfigure(0, weight=1)
 
         # Create a main frame
-        self.main_frame = ttk.Frame(root, bootstyle="dark")
+        self.main_frame = ttk.Frame(self.root, bootstyle="dark")
         self.main_frame.pack(padx=20, pady=20, expand=True)
 
         # Center content horizontally
@@ -48,21 +47,19 @@ class AttendanceApp:
         # first step: time display and subjects selection
         self.select_subject()
 
-
     def clear_frame(self):
         print('*' * 50)
         for widget in self.main_frame.winfo_children():
             print('widget ', widget)
             widget.destroy()
 
-
-    def update_time(self):
+    def create_time_label(self):
         def update_time():
             current_time = datetime.now().strftime("%I:%M %p")
             time_label.config(text=current_time)
             # Update time every second
-            time_label.after(1000, update_time, label)
-            
+            time_label.after(1000, update_time)
+
         # Add real-time clock label
         time_label = ttk.Label(self.main_frame,
                                font=("Helvetica", 70, "bold"), padding=(20, 20, 20, 0), bootstyle="success")
@@ -70,9 +67,8 @@ class AttendanceApp:
                         sticky="ew")
         update_time()  # Start updating the time
 
-
     def select_subject(self):
-        self.create_time_label();
+        self.create_time_label()
 
         lbl_subj = ttk.Label(self.main_frame, text="Select Subject",
                              font=("Arial", 16, "bold"), background="#303030")
@@ -89,8 +85,8 @@ class AttendanceApp:
 
         def next_step():
             selected_subject_id = subjs_dict[dropdown.get()]
-            clear_frame()
-            scan_fingerprint(selected_subject_id)
+            self.clear_frame()
+            self.scan_fingerprint(selected_subject_id)
 
         # Next step button
         next_button = ttk.Button(
@@ -98,6 +94,7 @@ class AttendanceApp:
         next_button.grid(row=4, column=0, padx=20, pady=20, sticky="ew")
 
     def scan_fingerprint(self, selected_subject_id):
+        fprint_scan = FPrintScanner()
         spin_anim_id = None
 
         # Create a circular spinner animation by rotating the meter value
@@ -113,13 +110,14 @@ class AttendanceApp:
         def threaded_scan():
             global spin_anim_id
             """Run fingerprint scanning in a separate thread."""
-            if get_fingerprint():
-                print("Detected #", finger.finger_id,
-                      "with confidence", finger.confidence)
-                student_info = timein(finger.finger_id, selected_subject_id)
-                clear_frame()
-                root.after_cancel(spin_anim_id)
-                display_info()
+            if fprint_scan.get_fingerprint():
+                print("Detected #", fprint_scan.finger.finger_id,
+                      "with confidence", fprint_scan.finger.confidence)
+                student_info = timein(
+                    fprint_scan.finger.finger_id, selected_subject_id)
+                self.clear_frame()
+                self.root.after_cancel(spin_anim_id)
+                self.display_info()
             else:
                 print("Finger not found")
 
@@ -151,7 +149,8 @@ class AttendanceApp:
         img_open = Image.open("img/default.png")
         img_open.thumbnail((200, 200))
         image = ImageTk.PhotoImage(img_open)
-        image_label = ttk.Label(self.main_frame, image=image, background="#303030")
+        image_label = ttk.Label(
+            self.main_frame, image=image, background="#303030")
         image_label.image = image  # Keep a reference to prevent garbage collection
         image_label.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
 
@@ -178,12 +177,12 @@ class AttendanceApp:
         imp_excel_btn.grid(row=3, column=1, pady=(10, 0), sticky="ew")
 
         def finish_attend():
-            clear_frame()
-            select_subject()
+            self.clear_frame()
+            self.select_subject()
 
         # Next step button
         done_btn = ttk.Button(
-            frame, text="Done Attendance", style="Custom.TButton", command=finish_attend)
+            self.main_frame, text="Done Attendance", style="Custom.TButton", command=finish_attend)
         done_btn.grid(row=5, column=0, columnspan=2,
                       padx=20, pady=20, sticky="ew")
 

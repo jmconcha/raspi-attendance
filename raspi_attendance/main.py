@@ -63,6 +63,22 @@ def get_student(fingerprint_id):
     return student
 
 
+def get_attendance(student_id):
+    query = f"""
+SELECT student.email, student.name, subject.name, attendance.time_in
+FROM attendance
+JOIN student ON student.id = attendance.student
+JOIN subject ON subject.id = attendance.subject
+WHERE student.id = {student_id}
+"""
+    conn, cur = open_conn()
+    cur.execute(query)
+    result_set = cur.fetchall()
+    conn.close()
+
+    return result_set
+
+
 def save_attendance(sel_subj_id, student_id):
     print(f"Selected subjectId: {sel_subj_id}")
     now = datetime.now()
@@ -74,58 +90,17 @@ def save_attendance(sel_subj_id, student_id):
     timein = cur.fetchone()[0]
     conn.commit()
     conn.close()
-    
-    return timein;
 
-
-def export_attendance(stud_id):
-    query = f"""
-SELECT student.email, student.name, subject.name, attendance.time_in
-FROM attendance
-JOIN student ON student.id = attendance.student
-JOIN subject ON subject.id = attendance.subject
-WHERE student.id = {stud_id}
-"""
-    conn, cur = open_conn()
-    cur.execute(query)
-    result_set = cur.fetchall()
-    conn.close()
-
-    # Create a workbook and select the active worksheet
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Students"
-    stud_email = result_set[0][0]
-    stud_name = result_set[0][1]
-
-    # Add headers
-    ws.append(["Name", "Subject Name", "Time In"])
-
-    # Add student data
-    for student in result_set:
-        row = list(student)
-        row.pop(0)
-        ws.append(row)
-
-    # Save the file
-    file_name = ROOT_DIR / \
-        f"excel/{stud_name.lower().replace(' ', '-')}_attendance.xlsx"
-    wb.save(file_name)
-
-    send_email(stud_email, stud_name, file_name)
-    os.remove(file_name)
-
-
-def clear_frame(frame):
-    print('*' * 50)
-    for widget in frame.winfo_children():
-        print('widget ', widget)
-        widget.destroy()
+    return timein
 
 
 def create_app():
-    attendance = { "student": {}, "subject": {}, "timein": None }
+    attendance = {"student": {}, "subject": {}, "timein": None}
     main_frame = None
+
+    def clear_frame():
+        for widget in main_frame.winfo_children():
+            widget.destroy()
 
     def update_time(label):
         current_time = datetime.now().strftime("%I:%M %p")
@@ -157,7 +132,7 @@ def create_app():
             subject_name = dropdown.get()
             attendance["subject"]["name"] = subject_name
             attendance["subject"]["id"] = subjs_dict[subject_name]
-            clear_frame(main_frame)
+            clear_frame()
             scan_fingerprint()
 
         # Next step button
@@ -188,12 +163,12 @@ def create_app():
                 attendance["student"]["id"] = student_info[0]
                 attendance["student"]["name"] = student_info[2]
                 attendance["timein"] = save_attendance(attendance["subject"]["id"], attendance["student"]["id"])
-                clear_frame(main_frame)
+                clear_frame()
                 root.after_cancel(spin_anim_id)
                 display_info()
             else:
                 print("Finger not found")
-
+        
         spinner = ttk.Meter(
             main_frame,
             metersize=400,
@@ -209,11 +184,11 @@ def create_app():
         )
 
         spinner.grid(row=0, column=0)
-        animate_spinner()
-
+        
         # Run the scan in a separate thread
-        # UNCOMMENT ON RASPI DEVELOPMENT
         threading.Thread(target=threaded_scan).start()
+        
+        animate_spinner()
 
     def display_info():
         # Load and display an image
@@ -225,12 +200,11 @@ def create_app():
         image_label = ttk.Label(main_frame, image=image, background="#303030")
         image_label.image = image  # Keep a reference to prevent garbage collection
         image_label.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
-        
+
         timein = datetime.strptime(attendance["timein"], "%m-%d-%Y %H:%M")
 
         # student information frame
         frame_info = ttk.Frame(main_frame, bootstyle="dark")
-        # frame_info.pack(padx=20, pady=20, expand=True)
         frame_info.grid(row=0, column=1, padx=(0, 20))
 
         lbl_name = ttk.Label(frame_info, text=f"Name: {attendance['student']['name']}",
@@ -247,11 +221,11 @@ def create_app():
 
         # export attendance report  as excel file
         imp_excel_btn = ttk.Button(
-            frame_info, text="Export Attendance as Excel File", style="Custom.TButton", command=lambda: export_attendance(attendance["student"]["id"]))
+            frame_info, text="Export Attendance as Excel File", style="Custom.TButton", command=export_attendance)
         imp_excel_btn.grid(row=3, column=1, pady=(10, 0), sticky="ew")
 
         def finish_attend():
-            clear_frame(main_frame)
+            clear_frame()
             select_subj()
 
         # Next step button
@@ -259,6 +233,39 @@ def create_app():
             main_frame, text="Done Attendance", style="Custom.TButton", command=finish_attend)
         done_btn.grid(row=5, column=0, columnspan=2,
                       padx=20, pady=20, sticky="ew")
+
+    def export_attendance():
+        result_set = get_attendance(attendance['student']['id'])
+
+        # Create a workbook and select the active worksheet
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Students"
+        stud_email = result_set[0][0]
+        stud_name = result_set[0][1]
+
+        # Add headers
+        ws.append(["Email", "Name", "Subject Name", "Date", "Time In"])
+
+        # Add student data
+        for student in result_set:
+            row = list(student)
+            timein_str = row[3]
+            timein_dt = datetime.strptime(timein_str, "%m-%d-%Y %H:%M")
+            date_str = timein_dt.strftime("%B %d, %Y")
+            time_str = timein_dt.strftime("%I:%M %p")
+            row.pop()
+            row.append(date_str)
+            row.append(time_str)
+            ws.append(row)
+
+        # Save the file
+        file_name = ROOT_DIR / \
+            f"excel/{stud_name.lower().replace(' ', '-')}_attendance.xlsx"
+        wb.save(file_name)
+
+        send_email(stud_email, stud_name, file_name)
+        os.remove(file_name)
 
     root = ttk.Window(themename="darkly")
     style = ttk.Style()

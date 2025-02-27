@@ -94,13 +94,13 @@ def save_attendance(sel_subj_id, student_id):
     return timein
 
 
-def create_app():
+def start_app():
     attendance = {"student": {}, "subject": {}, "timein": None}
     main_frame = None
-
-    def clear_frame():
+    
+    def hide_widgets():
         for widget in main_frame.winfo_children():
-            widget.destroy()
+            widget.grid_forget()
 
     def update_time(label):
         current_time = datetime.now().strftime("%I:%M %p")
@@ -132,7 +132,7 @@ def create_app():
             subject_name = dropdown.get()
             attendance["subject"]["name"] = subject_name
             attendance["subject"]["id"] = subjs_dict[subject_name]
-            clear_frame()
+            hide_widgets()
             scan_fingerprint()
 
         # Next step button
@@ -163,7 +163,7 @@ def create_app():
                 attendance["student"]["id"] = student_info[0]
                 attendance["student"]["name"] = student_info[2]
                 attendance["timein"] = save_attendance(attendance["subject"]["id"], attendance["student"]["id"])
-                clear_frame()
+                hide_widgets()
                 root.after_cancel(spin_anim_id)
                 display_info()
             else:
@@ -225,7 +225,7 @@ def create_app():
         imp_excel_btn.grid(row=3, column=1, pady=(10, 0), sticky="ew")
 
         def finish_attend():
-            clear_frame()
+            hide_widgets()
             select_subj()
 
         # Next step button
@@ -294,4 +294,4 @@ def create_app():
 
 
 if __name__ == "__main__":
-    create_app()
+    start_app()

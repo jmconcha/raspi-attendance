@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import messagebox
 import ttkbootstrap as ttk
 import threading
+import sys
 import os
 
 # fingerprint scanner imports
@@ -19,7 +20,7 @@ import adafruit_fingerprint
 # custom module imports
 from mailer import send_email
 from dbms import get_subjs, get_student, get_attendance, save_attendance
-from utils import save_to_excel, custom_sleep
+from utils import save_to_excel
 
 # fingerprint scanner setup
 led = DigitalInOut(board.D13)
@@ -37,15 +38,14 @@ class RaspiAttendance():
     proceed = True
     
     
-    def __init__(self):
+    def __init__(self, isProd):
         root = ttk.Window(themename="darkly")
         root.title("Attendance System")
         root.geometry(SCREEN_WIDTH)  # 7 inch touchscreen resolution
         root.resizable(False, False)  # Disable resizing
-
-        # Configure grid to expand
-        root.rowconfigure(0, weight=1)
-        root.columnconfigure(0, weight=1)
+        if (isProd):
+            root.overrideredirect(True)
+            root.attributes('-fullscreen', True)
 
         # Create a frame
         main_frame = ttk.Frame(root, bootstyle="dark")
@@ -62,11 +62,11 @@ class RaspiAttendance():
         
         self.subjs_dict = get_subjs()
         self.draw_subj_sel()
+        self.draw_spin()
     
     
     def start_loop(self):
         self.show_widgets("subj_sel")
-        self.draw_spin()
         self.scan_fingerprint()
         
         
@@ -172,6 +172,12 @@ class RaspiAttendance():
                 self.display_info()
             else:
                 print("Finger not found")
+                self.spinner.configure(subtext="Fingerprint\nUnrecognized")
+                time.sleep(2)
+                self.hide_widgets()
+                self.root.after_cancel(self.spin_anim_id)
+                self.spinner.configure(subtext="Scanning\nFingerprint")
+                self.start_loop()
                 
         thread = threading.Thread(target=threaded_scan) # Run fingerprint scanning in a separate thread.
         thread.start()
@@ -269,11 +275,12 @@ class RaspiAttendance():
         popup.destroy()
         
 
-def start_app():
-    app = RaspiAttendance()
+def start_app(isProd):
+    app = RaspiAttendance(True if isProd == "1" else False)
     app.start_loop()
     app.root.mainloop()
 
 
 if __name__ == "__main__":
-    start_app()
+    argv = sys.argv[1] if len(sys.argv) > 1 else 0
+    start_app(argv)

@@ -16,3 +16,5 @@ oauth2_creds.json
 *.db
 *.xlsx
 *.sql
+oauth2_setup.py
+test.py

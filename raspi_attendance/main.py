@@ -166,18 +166,20 @@ class RaspiAttendance():
                 self.attendance["student"]["id"] = student_info[0]
                 self.attendance["student"]["name"] = student_info[2]
                 self.attendance["timein"] = save_attendance(self.attendance["subject"]["id"], self.attendance["student"]["id"])
-                time.sleep(2) # 2 seconds delay after identifying fingerprint
-                self.hide_widgets()
-                self.root.after_cancel(self.spin_anim_id)
-                self.display_info()
+                def next():
+                    self.hide_widgets()
+                    self.root.after_cancel(self.spin_anim_id)
+                    self.display_info()
+                self.root.after(2000, next)
             else:
                 print("Finger not found")
                 self.spinner.configure(subtext="Fingerprint\nUnrecognized")
-                time.sleep(2)
-                self.hide_widgets()
-                self.root.after_cancel(self.spin_anim_id)
-                self.spinner.configure(subtext="Scanning\nFingerprint")
-                self.start_loop()
+                def next():
+                    self.hide_widgets()
+                    self.root.after_cancel(self.spin_anim_id)
+                    self.spinner.configure(subtext="Scanning\nFingerprint")
+                    self.start_loop()
+                self.root.after(2000, next)
                 
         thread = threading.Thread(target=threaded_scan) # Run fingerprint scanning in a separate thread.
         thread.start()
@@ -214,10 +216,11 @@ class RaspiAttendance():
             frame_info, text="Export Attendance as Excel File", style="Custom.TButton", command=self.export_attendance)
         self.imp_excel_btn.grid(row=3, column=1, pady=(10, 0), sticky="ew")
         
-        time.sleep(6) # seconds delay before closing info display
-        if (self.proceed):
-            self.hide_widgets()
-            self.start_loop()
+        def next():
+            if (self.proceed):
+                self.hide_widgets()
+                self.start_loop()
+        self.root.after(6000, next)
     
     
     def export_attendance(self):

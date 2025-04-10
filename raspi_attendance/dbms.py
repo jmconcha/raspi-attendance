@@ -14,13 +14,15 @@ def open_conn():
 
 
 def get_subjs():
+    # get available subjects based on current time
+    now = datetime.now()
+    day_name = now.strftime("%A")
+    
     conn, cur = open_conn()
-    result_set = cur.execute('SELECT * FROM subject')
+    result_set = cur.execute(f"SELECT * FROM subject WHERE day LIKE '%{day_name}%'")
     subj_arr = result_set.fetchall()
     conn.close()
 
-    # get available subjects based on current time=
-    now = datetime.now()
     avail_subjs = {}
     for subj in subj_arr:
         subj_id = subj[0]

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from ttkbootstrap.constants import *
 from datetime import datetime
 from PIL import Image, ImageTk
@@ -80,7 +82,8 @@ class RaspiAttendance():
             self.time_label.grid(row=0, column=0, padx=20, pady=20,
                         sticky="ew")
             self.lbl_subj.grid(row=1, column=0, padx=20, sticky="ew")
-            self.dropdown_btn.grid(row=2, column=0, padx=20, pady=(5, 20), sticky="ew")
+            if len(self.subjs_dict) > 0:
+                self.dropdown_btn.grid(row=2, column=0, padx=20, pady=(5, 20), sticky="ew")
         elif group_name == "spinner":
             self.spinner.grid(row=0, column=0)
 
@@ -96,17 +99,19 @@ class RaspiAttendance():
                                font=("Helvetica", 90, "bold"), padding=(20, 20, 20, 0), bootstyle="success")
         update_time()  # Start updating the time
 
-        self.lbl_subj = ttk.Label(self.main_frame, text="Select Subject", padding=(0, 20, 0, 0),
+        lbl_subj_text = "Select Subject" if len(self.subjs_dict) > 0 else "No available subjects today."
+        self.lbl_subj = ttk.Label(self.main_frame, text=lbl_subj_text, padding=(0, 20, 0, 0),
                              font=("Arial", 36, "bold"), background="#303030")
 
-        # Dropdown menu
-        options = [val for val in self.subjs_dict.keys()]
-        
-        self.selected_var = tk.StringVar(value=options[0])  # Default selection
-        self.dropdown_btn = ttk.Button(
-            self.main_frame, text=self.selected_var.get(), style="Custom.TButton", bootstyle="primary",
-            command=lambda: self.open_dropdown(options)
-        )
+        if len(self.subjs_dict) > 0:
+            # Dropdown menu
+            options = [val for val in self.subjs_dict.keys()]
+            
+            self.selected_var = tk.StringVar(value=options[0])  # Default selection
+            self.dropdown_btn = ttk.Button(
+                self.main_frame, text=self.selected_var.get(), style="Custom.TButton", bootstyle="primary",
+                command=lambda: self.open_dropdown(options)
+            )
 
         
     def animate_spinner(self):
@@ -165,6 +170,7 @@ class RaspiAttendance():
                 
                 self.attendance["student"]["id"] = student_info[0]
                 self.attendance["student"]["name"] = student_info[2]
+                self.attendance["student"]["picture"] = student_info[4]
                 self.attendance["timein"] = save_attendance(self.attendance["subject"]["id"], self.attendance["student"]["id"])
                 def next():
                     self.hide_widgets()
@@ -186,7 +192,7 @@ class RaspiAttendance():
         
         
     def display_info(self): # Load and display an image
-        img_path = ROOT_DIR / "img/default.png"
+        img_path = ROOT_DIR / f"img/{self.attendance['student']['picture']}"
         img_open = Image.open(img_path)
         img_open.thumbnail((200, 200))
         image = ImageTk.PhotoImage(img_open)

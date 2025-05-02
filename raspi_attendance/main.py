@@ -7,6 +7,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox
 import ttkbootstrap as ttk
+from ttkbootstrap.toast import ToastNotification
 import threading
 import sys
 import os
@@ -42,12 +43,14 @@ class RaspiAttendance():
     
     def __init__(self, isProd):
         root = ttk.Window(themename="darkly")
+        root.config(cursor="none")
         root.title("Attendance System")
-        root.geometry(SCREEN_WIDTH)  # 7 inch touchscreen resolution
-        root.resizable(False, False)  # Disable resizing
         if (isProd):
             root.overrideredirect(True)
             root.attributes('-fullscreen', True)
+        else:
+            root.geometry(SCREEN_WIDTH)  # 7 inch touchscreen resolution
+            root.resizable(False, False)  # Disable resizing
 
         # Create a frame
         main_frame = ttk.Frame(root, bootstyle="dark")
@@ -241,7 +244,14 @@ class RaspiAttendance():
         send_email(stud_email, stud_name, file_name) # send excel file to student email
         os.remove(file_name)
         self.imp_excel_btn.config(text="Export Attendance as Excel File", state="normal")  # Restore button
-        tk.messagebox.showinfo("Information", "Attendance report sent to your email address.")
+
+        # tk.messagebox.showinfo(title="Success", message="Attendance report sent to your email address.")
+        toast = ToastNotification(title="Success",
+            message="Attendance report sent to your email address.",
+            duration=4000,
+            bootstyle="info")
+        toast.show_toast()
+        
         self.hide_widgets()
         self.start_loop()
         self.proceed = True
@@ -249,23 +259,25 @@ class RaspiAttendance():
     
     def open_dropdown(self, options):
         popup = tk.Toplevel(self.root)
-        popup.title("Select Subject")
-        popup.geometry(SCREEN_WIDTH)
-        popup.transient(self.root)
+        popup.config(cursor="none")
+        popup.overrideredirect(True)  # Remove window decorations and force top-level stacking
+        popup.attributes("-topmost", True)
+        popup.focus_force()
+        popup.grab_set()
+
+        # Position at (0, 0) to make it full screen over the main app
+        popup.geometry(f"{SCREEN_WIDTH}+0+0")
 
         # Frame to hold Listbox and Scrollbar
-        frame = ttk.Frame(popup)
-        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        frame = ttk.Frame(popup, padding=20)
+        frame.pack(fill=tk.BOTH, expand=True)
 
-        # Scrollbar
         scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL)
 
-        # Listbox with scrollbar support
         listbox = tk.Listbox(frame, font=("Arial", 20), height=10, yscrollcommand=scrollbar.set)
         for option in options:
             listbox.insert(tk.END, option)
 
-        # Configure scrollbar to scroll Listbox
         scrollbar.config(command=listbox.yview)
 
         listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
